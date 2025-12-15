@@ -1,0 +1,685 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Transition Diagram to Lex Code Generator</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script type="module">
+        import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.esm.min.mjs';
+        mermaid.initialize({ startOnLoad: false, theme: 'default' });
+        window.mermaid = mermaid;
+    </script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&family=Inter:wght@400;600;800&display=swap');
+        
+        body { font-family: 'Inter', sans-serif; }
+        .code-font { font-family: 'JetBrains Mono', monospace; }
+        
+        textarea::-webkit-scrollbar, div::-webkit-scrollbar { width: 8px; height: 8px; }
+        textarea::-webkit-scrollbar-track, div::-webkit-scrollbar-track { background: #f1f5f9; }
+        textarea::-webkit-scrollbar-thumb, div::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+        textarea::-webkit-scrollbar-thumb:hover, div::-webkit-scrollbar-thumb { background: #94a3b8; }
+        
+        .tab-active { border-bottom: 2px solid #4f46e5; color: #4f46e5; font-weight: 600; }
+        .tab-inactive { color: #64748b; }
+        .tab-inactive:hover { color: #334155; }
+    </style>
+</head>
+<body class="bg-slate-50 text-slate-800 min-h-screen flex flex-col">
+
+    <header class="bg-indigo-600 text-white p-4 shadow-lg">
+        <div class="max-w-7xl mx-auto flex justify-between items-center">
+            <h1 class="text-2xl font-bold tracking-tight">Lex<span class="text-indigo-200">Gen</span> <span class="text-xs bg-indigo-500 px-2 py-1 rounded ml-2">v1.0 </span></h1>
+            <p class="text-sm text-indigo-100 hidden sm:block">Regex &rarr; NFA &rarr; DFA &rarr; Lex</p>
+        </div>
+    </header>
+
+    <main class="flex-grow p-4 md:p-8">
+        <div class="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-12 gap-8 h-full">
+
+            <div class="lg:col-span-5 flex flex-col gap-6">
+                
+                <div class="bg-white rounded-t-xl shadow-sm border-b border-slate-200 flex">
+                    <button onclick="switchMode('manual')" id="tab-manual" class="flex-1 py-3 text-sm transition tab-active">Manual Builder</button>
+                    <button onclick="switchMode('regex')" id="tab-regex" class="flex-1 py-3 text-sm transition tab-inactive">Regex Engine</button>
+                </div>
+
+                <div id="panel-manual" class="bg-white p-6 rounded-b-xl shadow-md border border-slate-200 border-t-0">
+                    <h2 class="text-lg font-bold text-slate-700 mb-4 flex items-center gap-2">
+                        <span>Define Transitions Manually</span>
+                    </h2>
+                    
+                    <div class="grid grid-cols-3 gap-2 mb-4">
+                        <div class="col-span-1">
+                            <label class="block text-xs font-semibold text-slate-500 mb-1 uppercase">From</label>
+                            <input type="text" id="fromState" placeholder="A" value="A" class="w-full p-2 bg-slate-50 border border-slate-300 rounded focus:ring-2 focus:ring-indigo-500 outline-none transition font-bold text-slate-700 uppercase">
+                        </div>
+                        <div class="col-span-1">
+                            <label class="block text-xs font-semibold text-slate-500 mb-1 uppercase">Input</label>
+                            <input type="text" id="inputChar" placeholder="0" class="w-full p-2 bg-slate-50 border border-slate-300 rounded focus:ring-2 focus:ring-indigo-500 outline-none transition code-font">
+                        </div>
+                        <div class="col-span-1">
+                            <label class="block text-xs font-semibold text-slate-500 mb-1 uppercase">To</label>
+                            <input type="text" id="toState" placeholder="B" class="w-full p-2 bg-slate-50 border border-slate-300 rounded focus:ring-2 focus:ring-indigo-500 outline-none transition font-bold text-slate-700 uppercase">
+                        </div>
+                    </div>
+
+                    <button onclick="addTransition()" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-2 px-4 rounded transition shadow-sm mb-4">
+                        + Add Rule
+                    </button>
+                </div>
+
+                <!-- Input Card: REGEX MODE (Hidden by default) -->
+                <div id="panel-regex" class="bg-white p-6 rounded-b-xl shadow-md border border-slate-200 border-t-0 hidden">
+                    <h2 class="text-lg font-bold text-slate-700 mb-4 flex items-center gap-2">
+                        <span>Regex Parser</span>
+                    </h2>
+                    <div class="mb-4">
+                        <label class="block text-xs font-semibold text-slate-500 mb-1 uppercase">Regular Expression</label>
+                        <input type="text" id="regexInput" placeholder="[0-9]+(\.[0-9]+)?" class="w-full p-3 bg-slate-50 border border-slate-300 rounded focus:ring-2 focus:ring-indigo-500 outline-none code-font text-lg">
+                        <div class="mt-3 grid grid-cols-2 gap-2 text-xs text-slate-500">
+                            <div><code class="bg-slate-100 px-1 rounded font-bold">a-z 0-9</code> Literals</div>
+                            <div><code class="bg-slate-100 px-1 rounded font-bold">* + ?</code> Quantifiers</div>
+                            <div><code class="bg-slate-100 px-1 rounded font-bold">| ( )</code> Logic</div>
+                            <div><code class="bg-slate-100 px-1 rounded font-bold">[a-c]</code> Classes</div>
+                            <div><code class="bg-slate-100 px-1 rounded font-bold">[0-9]</code> Ranges</div>
+                            <div><code class="bg-slate-100 px-1 rounded font-bold">\</code> Escapes</div>
+                        </div>
+                    </div>
+                    <button onclick="processRegex()" class="w-full bg-purple-600 hover:bg-purple-700 text-white font-semibold py-2 px-4 rounded transition shadow-sm">
+                        Generate Diagram from Regex
+                    </button>
+                </div>
+
+                <!-- Settings Card -->
+                <div class="bg-white p-6 rounded-xl shadow-md border border-slate-200">
+                    <div class="mb-4">
+                        <label class="block text-xs font-semibold text-slate-500 mb-1 uppercase">Final/Accepting States</label>
+                        <input type="text" id="finalStates" placeholder="e.g. C, D" class="w-full p-2 bg-slate-50 border border-slate-300 rounded focus:ring-2 focus:ring-indigo-500 outline-none uppercase font-bold text-slate-700">
+                        <p class="text-xs text-slate-400 mt-1">Auto-filled in Regex mode</p>
+                    </div>
+                    
+                    <!-- Transition Table -->
+                    <div class="mt-6">
+                        <div class="flex justify-between items-center mb-2">
+                            <label class="block text-xs font-semibold text-slate-500 uppercase">Transition Table</label>
+                            <button onclick="clearAll()" class="text-xs text-red-500 hover:text-red-700">Reset All</button>
+                        </div>
+                        <div class="border rounded-lg overflow-hidden bg-slate-50 h-48 overflow-y-auto">
+                            <table class="w-full text-sm text-left">
+                                <thead class="bg-slate-100 text-xs text-slate-500 uppercase font-bold sticky top-0">
+                                    <tr>
+                                        <th class="px-4 py-2">State</th>
+                                        <th class="px-4 py-2 text-center">Input</th>
+                                        <th class="px-4 py-2 text-right">Next State</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="transitionTableBody">
+                                    <tr class="text-slate-400 italic text-center"><td colspan="3" class="p-4">No rules yet.</td></tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+
+            <!-- RIGHT COLUMN: Output (8 cols) -->
+            <div class="lg:col-span-7 flex flex-col gap-6">
+
+                <!-- Diagram Panel -->
+                <div class="bg-white p-6 rounded-xl shadow-md border border-slate-200 min-h-[300px] flex flex-col">
+                    <h2 class="text-lg font-bold text-slate-700 mb-2 border-b pb-2">Visual Diagram</h2>
+                    <div class="flex-grow flex items-center justify-center bg-slate-50 rounded border border-slate-100 overflow-hidden relative min-h-[300px]">
+                        <div id="mermaidContainer" class="w-full h-full flex items-center justify-center p-4">
+                            <span class="text-slate-400 text-sm">Diagram will appear here.</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Code Panel -->
+                <div class="bg-slate-900 p-0 rounded-xl shadow-lg flex-grow flex flex-col overflow-hidden h-[400px]">
+                    <div class="bg-slate-800 px-4 py-2 flex justify-between items-center border-b border-slate-700">
+                        <span class="text-slate-300 text-xs font-mono font-bold">output.l</span>
+                        <div class="flex gap-2">
+                            <button onclick="generateLex()" class="text-xs bg-emerald-600 hover:bg-emerald-500 text-white px-3 py-1 rounded transition">Regenerate Code</button>
+                            <button onclick="copyCode()" class="text-xs bg-slate-700 hover:bg-slate-600 text-white px-3 py-1 rounded transition">Copy</button>
+                        </div>
+                    </div>
+                    <textarea id="lexOutput" class="w-full h-full bg-slate-900 text-emerald-400 p-4 code-font text-sm outline-none resize-none" readonly spellcheck="false">// Lex code will be generated here...</textarea>
+                </div>
+
+            </div>
+        </div>
+    </main>
+
+    <!-- LOGIC START -->
+    <script>
+        // --- Data Models ---
+        let transitions = []; // { id, from, input, to }
+        let states = new Set(['A']); // Default manual state
+        let idCounter = 0;
+        let mode = 'manual'; 
+
+        // --- UI Functions ---
+        function switchMode(newMode) {
+            mode = newMode;
+            document.getElementById('tab-manual').className = newMode === 'manual' ? 'flex-1 py-3 text-sm transition tab-active' : 'flex-1 py-3 text-sm transition tab-inactive';
+            document.getElementById('tab-regex').className = newMode === 'regex' ? 'flex-1 py-3 text-sm transition tab-active' : 'flex-1 py-3 text-sm transition tab-inactive';
+            
+            if (newMode === 'manual') {
+                document.getElementById('panel-manual').classList.remove('hidden');
+                document.getElementById('panel-regex').classList.add('hidden');
+            } else {
+                document.getElementById('panel-manual').classList.add('hidden');
+                document.getElementById('panel-regex').classList.remove('hidden');
+            }
+        }
+
+        function addTransition() {
+            const from = (document.getElementById('fromState').value.trim().toUpperCase() || 'A');
+            const input = document.getElementById('inputChar').value.trim();
+            const to = document.getElementById('toState').value.trim().toUpperCase();
+
+            if (!input || !to) return alert("Please fill all fields");
+
+            const exists = transitions.find(t => t.from === from && t.input === input);
+            if(exists) {
+                if(!confirm(`Transition from ${from} on '${input}' already goes to ${exists.to}. Overwrite?`)) return;
+                removeTransition(exists.id);
+            }
+
+            pushTransition(from, input, to);
+            updateUI();
+            
+            document.getElementById('fromState').value = to;
+            document.getElementById('inputChar').value = '';
+            document.getElementById('toState').value = '';
+            document.getElementById('inputChar').focus();
+        }
+
+        function pushTransition(from, input, to) {
+            transitions.push({ id: idCounter++, from, input, to });
+            states.add(from);
+            states.add(to);
+        }
+
+        function removeTransition(id) {
+            transitions = transitions.filter(t => t.id !== id);
+            recalcStates();
+            updateUI();
+        }
+
+        function clearAll() {
+            if(confirm("Clear all data?")) {
+                transitions = [];
+                states = new Set(['A']);
+                document.getElementById('fromState').value = 'A';
+                document.getElementById('finalStates').value = '';
+                updateUI();
+                document.getElementById('lexOutput').value = '// Lex code will be generated here...';
+            }
+        }
+
+        function recalcStates() {
+            states = new Set();
+            if(transitions.length > 0) states.add(transitions[0].from); 
+            else states.add('A'); 
+
+            transitions.forEach(t => {
+                states.add(t.from);
+                states.add(t.to);
+            });
+        }
+
+        function updateUI() {
+            renderTable();
+            renderDiagram();
+            generateLex();
+        }
+
+        // --- Visualization & Tables ---
+
+        function renderTable() {
+            const tbody = document.getElementById('transitionTableBody');
+            tbody.innerHTML = '';
+            
+            const sorted = [...transitions].sort((a,b) => {
+                if(a.from < b.from) return -1;
+                if(a.from > b.from) return 1;
+                if(a.input < b.input) return -1;
+                return 1;
+            });
+
+            if (sorted.length === 0) {
+                tbody.innerHTML = '<tr class="text-slate-400 italic text-center"><td colspan="3" class="p-4">No rules yet.</td></tr>';
+                return;
+            }
+
+            sorted.forEach(t => {
+                const tr = document.createElement('tr');
+                tr.className = "border-b border-slate-100 hover:bg-slate-100 transition";
+                tr.innerHTML = `
+                    <td class="px-4 py-2 font-bold text-indigo-700">${t.from}</td>
+                    <td class="px-4 py-2 text-center"><code class="bg-slate-200 px-2 py-1 rounded text-xs">${t.input}</code></td>
+                    <td class="px-4 py-2 font-bold text-indigo-700 text-right">${t.to}</td>
+                `;
+                tbody.appendChild(tr);
+            });
+        }
+
+        async function renderDiagram() {
+            if (transitions.length === 0) return;
+
+            const element = document.getElementById('mermaidContainer');
+            let s = "stateDiagram-v2\n direction LR\n";
+            
+            const startState = transitions.length > 0 ? transitions[0].from : 'A';
+            s += `[*] --> ${startState}\n`;
+
+            transitions.forEach(t => {
+                s += `${t.from} --> ${t.to} : ${t.input}\n`;
+            });
+
+            const fs = document.getElementById('finalStates').value.split(',').map(x=>x.trim()).filter(x=>x);
+            fs.forEach(f => {
+                if([...states].some(st => st === f)) {
+                    s += `note right of ${f}\n Final\nend note\n`;
+                }
+            });
+
+            try {
+                element.innerHTML = "";
+                const { svg } = await window.mermaid.render('mermaidSvg' + Date.now(), s);
+                element.innerHTML = svg;
+            } catch (e) {
+                element.innerHTML = `<span class="text-red-500">Diagram Error: ${e.message}</span>`;
+            }
+        }
+
+        // --- Lex Code Generator ---
+
+        function generateLex() {
+            if(transitions.length === 0) return;
+
+            const fsInput = document.getElementById('finalStates').value;
+            const finalStates = new Set(fsInput.split(',').map(s => s.trim().toUpperCase()).filter(s => s));
+            const startStateRaw = transitions[0].from;
+            const stateMap = {};
+            const lexStatesDeclared = new Set();
+            const allStates = new Set();
+            transitions.forEach(t => { allStates.add(t.from); allStates.add(t.to); });
+            finalStates.forEach(s => { if([...allStates].includes(s)) allStates.add(s); });
+
+            allStates.forEach(s => {
+                if (s === startStateRaw) {
+                    stateMap[s] = "INITIAL";
+                } else {
+                    const clean = s.replace(/[^a-zA-Z0-9]/g, '_');
+                    const lexName = `S_${clean}`;
+                    stateMap[s] = lexName;
+                    lexStatesDeclared.add(lexName);
+                }
+            });
+
+            let code = `%{
+#include <stdio.h>
+%}
+
+/* Define States */
+%s ${Array.from(lexStatesDeclared).join(' ')} DEAD
+
+%%\n`;
+
+            const getTrans = (s) => transitions.filter(t => t.from === s);
+            const sortedStates = Array.from(allStates).sort((a,b) => {
+                if(a === startStateRaw) return -1;
+                if(b === startStateRaw) return 1;
+                return a.localeCompare(b);
+            });
+
+            sortedStates.forEach(userState => {
+                const lexState = stateMap[userState];
+                const trans = getTrans(userState);
+                code += `/* State ${userState} */\n`;
+                trans.forEach(t => {
+                    const targetLex = stateMap[t.to];
+                    code += `<${lexState}>${t.input}    { BEGIN ${targetLex}; }\n`;
+                });
+                code += `<${lexState}>.    { BEGIN DEAD; }\n`;
+
+                if (finalStates.has(userState)) {
+                    code += `<${lexState}>\\n   { printf("ACCEPTED\\n"); return 1; }\n`;
+                } else {
+                    code += `<${lexState}>\\n   { printf("REJECTED\\n"); return 0; }\n`;
+                }
+                code += `\n`;
+            });
+
+            code += `/* Dead State */\n`;
+            code += `<DEAD>.     { /* Consume garbage */ }\n`;
+            code += `<DEAD>\\n    { printf("REJECTED\\n"); return 0; }\n`;
+
+            code += `%%\n
+int yywrap() { return 1; }
+int main() {
+    printf("Enter string: ");
+    yylex();
+    return 0;
+}`;
+            document.getElementById('lexOutput').value = code;
+        }
+
+        function copyCode() {
+            document.getElementById('lexOutput').select();
+            document.execCommand('copy');
+        }
+
+        // --- ENHANCED REGEX ENGINE (Complex Grammars) ---
+        
+        function processRegex() {
+            const raw = document.getElementById('regexInput').value.trim();
+            if(!raw) return alert("Enter a regex");
+
+            try {
+                // 1. Expansion & Parsing
+                const expanded = expandRegex(raw);
+                const nfa = regexToNFA(expanded);
+                
+                // 2. Conversion
+                const dfa = nfaToDfa(nfa);
+                
+                // 3. Mapping to App State
+                transitions = [];
+                states = new Set();
+                idCounter = 0;
+
+                const stateMap = new Map();
+                let stateId = 0;
+                
+                const startKey = dfa.start.id;
+                stateMap.set(startKey, '0'); 
+                
+                const allDfaStates = [dfa.start];
+                let head = 0;
+                while(head < allDfaStates.length) {
+                    const s = allDfaStates[head++];
+                    
+                    if(!stateMap.has(s.id)) stateMap.set(s.id, (++stateId).toString());
+                    const fromId = stateMap.get(s.id);
+
+                    for(const char in s.transitions) {
+                        const target = s.transitions[char];
+                        if(!stateMap.has(target.id)) {
+                            stateMap.set(target.id, (++stateId).toString());
+                            allDfaStates.push(target);
+                        }
+                        const toId = stateMap.get(target.id);
+                        pushTransition(fromId, char, toId);
+                    }
+                }
+
+                const finalStateIds = [];
+                allDfaStates.forEach(s => {
+                    if(s.isEnd) finalStateIds.push(stateMap.get(s.id));
+                });
+
+                document.getElementById('finalStates').value = finalStateIds.join(', ');
+                updateUI();
+
+            } catch(e) {
+                alert("Regex Error: " + e.message);
+                console.error(e);
+            }
+        }
+
+        // --- Complex Grammar Helpers ---
+
+        function expandRegex(str) {
+            // Step 1: Handle brackets [0-9] -> (0|1|...|9)
+            // Note: This is a simplified expansion that handles [abc], [0-9], [a-z]
+            
+            let expanded = str;
+            
+            // Regex to find [...] blocks
+            const bracketRegex = /\[([^\]]+)\]/g;
+            expanded = expanded.replace(bracketRegex, (match, content) => {
+                let parts = [];
+                for(let i=0; i<content.length; i++) {
+                    // Check for Range (a-z)
+                    if(i+2 < content.length && content[i+1] === '-') {
+                        const start = content.charCodeAt(i);
+                        const end = content.charCodeAt(i+2);
+                        for(let c=start; c<=end; c++) parts.push(String.fromCharCode(c));
+                        i += 2;
+                    } else {
+                        // Literal char (handle escapes later if needed)
+                        parts.push(content[i]);
+                    }
+                }
+                return "(" + parts.join('|') + ")";
+            });
+
+            return expanded;
+        }
+
+        class State {
+            constructor(isEnd = false) {
+                this.isEnd = isEnd;
+                this.transitions = {};
+                this.epsilonTransitions = [];
+                this.id = Math.random().toString(36).substr(2, 9);
+            }
+            addTransition(char, state) {
+                if(!this.transitions[char]) this.transitions[char] = [];
+                this.transitions[char].push(state);
+            }
+            addEpsilon(state) {
+                this.epsilonTransitions.push(state);
+            }
+        }
+
+        class NFA {
+            constructor(start, end) { this.start = start; this.end = end; }
+        }
+
+        function regexToNFA(pattern) {
+            // 1. Insert Concatenation '.'
+            let processed = "";
+            let escaped = false;
+            
+            for(let i=0; i<pattern.length; i++) {
+                const c1 = pattern[i];
+                
+                // Handle Escape
+                if(c1 === '\\' && !escaped) {
+                    escaped = true;
+                    continue; 
+                }
+
+                if (escaped) {
+                    // Treat literal as a special token or just a character
+                    // We append it. If prev was a token, add '.'
+                    if(processed.length > 0) {
+                         const last = processed[processed.length-1];
+                         if (last.match(/[a-z0-9)*?+]/)) processed += '.';
+                    }
+                    processed += c1; // Add literal
+                    escaped = false;
+                    continue;
+                }
+
+                // Normal logic
+                if (i > 0) {
+                    const c0 = pattern[i-1];
+                    const isC0Op = /[a-z0-9*?+)]/.test(c0) && pattern[i-2] !== '\\'; 
+                    const isC1Op = /[a-z0-9(]/.test(c1);
+                    
+                    // Logic check: if c0 was ) or char or postfix op, and c1 is char or (
+                    if (isC0Op && isC1Op) {
+                        processed += '.';
+                    }
+                }
+                processed += c1;
+            }
+
+            // 2. Shunting Yard (Infix -> Postfix)
+            let postfix = "";
+            const stack = [];
+            // Precedence: * + ? > . > |
+            const precedence = { '*': 3, '+': 3, '?': 3, '.': 2, '|': 1, '(': 0 };
+
+            for(let i=0; i<processed.length; i++) {
+                let c = processed[i];
+                
+                // Detection if this char is a literal (part of an escape?)
+                // In this simple parser, we stripped '\'. 
+                // We rely on standard chars. If user typed '\+', processed has '+'. 
+                // We need to differentiate operator '+' vs literal '+'. 
+                // **Simplification**: To robustly support escaped chars in this single-file 
+                // without a heavy lexer, we assume input chars are simple alphanumeric or ops.
+                // For complex symbols, the user should rely on [ ] or we need a token stream.
+                
+                if(c.match(/[a-z0-9]/)) {
+                    postfix += c;
+                } else if(c === '(') {
+                    stack.push(c);
+                } else if(c === ')') {
+                    while(stack.length && stack[stack.length-1] !== '(') postfix += stack.pop();
+                    stack.pop();
+                } else if (precedence[c]) {
+                    while(stack.length && precedence[stack[stack.length-1]] >= precedence[c]) postfix += stack.pop();
+                    stack.push(c);
+                } else {
+                    // Treat unknown symbols as literals (e.g. _)
+                    postfix += c;
+                }
+            }
+            while(stack.length) postfix += stack.pop();
+
+            // 3. Postfix -> NFA
+            const nfaStack = [];
+            for(let c of postfix) {
+                if(!precedence[c] && c !== '.') { // Literal
+                    const start = new State();
+                    const end = new State(true);
+                    start.addTransition(c, end);
+                    nfaStack.push(new NFA(start, end));
+                } else if(c === '.') {
+                    const n2 = nfaStack.pop();
+                    const n1 = nfaStack.pop();
+                    n1.end.isEnd = false;
+                    n1.end.addEpsilon(n2.start);
+                    nfaStack.push(new NFA(n1.start, n2.end));
+                } else if(c === '|') {
+                    const n2 = nfaStack.pop();
+                    const n1 = nfaStack.pop();
+                    const start = new State();
+                    const end = new State(true);
+                    n1.end.isEnd = false; n2.end.isEnd = false;
+                    start.addEpsilon(n1.start);
+                    start.addEpsilon(n2.start);
+                    n1.end.addEpsilon(end);
+                    n2.end.addEpsilon(end);
+                    nfaStack.push(new NFA(start, end));
+                } else if(c === '*') {
+                    const n = nfaStack.pop();
+                    const start = new State();
+                    const end = new State(true);
+                    n.end.isEnd = false;
+                    start.addEpsilon(n.start);
+                    start.addEpsilon(end);
+                    n.end.addEpsilon(n.start);
+                    n.end.addEpsilon(end);
+                    nfaStack.push(new NFA(start, end));
+                } else if(c === '+') {
+                    const n = nfaStack.pop();
+                    const start = new State();
+                    const end = new State(true);
+                    n.end.isEnd = false;
+                    start.addEpsilon(n.start);
+                    n.end.addEpsilon(n.start);
+                    n.end.addEpsilon(end);
+                    nfaStack.push(new NFA(start, end));
+                } else if(c === '?') { // Optional (0 or 1)
+                    const n = nfaStack.pop();
+                    const start = new State();
+                    const end = new State(true);
+                    n.end.isEnd = false;
+                    start.addEpsilon(n.start); // The '1' path
+                    start.addEpsilon(end);     // The '0' path (skip)
+                    n.end.addEpsilon(end);
+                    nfaStack.push(new NFA(start, end));
+                }
+            }
+            return nfaStack.pop();
+        }
+
+        function nfaToDfa(nfa) {
+            function getEpsilonClosure(states) {
+                const stack = [...states];
+                const closure = new Set(states);
+                while(stack.length) {
+                    const s = stack.pop();
+                    if(s.epsilonTransitions) {
+                        s.epsilonTransitions.forEach(next => {
+                            if(!closure.has(next)) { closure.add(next); stack.push(next); }
+                        });
+                    }
+                }
+                return closure;
+            }
+
+            const inputs = new Set();
+            const traverse = (s, v=new Set()) => {
+                if(v.has(s)) return;
+                v.add(s);
+                Object.keys(s.transitions).forEach(k => inputs.add(k));
+                s.epsilonTransitions.forEach(n => traverse(n, v));
+                Object.values(s.transitions).forEach(arr => arr.forEach(n => traverse(n, v)));
+            };
+            traverse(nfa.start);
+
+            const startClosure = getEpsilonClosure([nfa.start]);
+            const dfaStart = { 
+                id: Array.from(startClosure).map(s=>s.id).sort().join(','), 
+                nfaStates: startClosure, transitions: {}, isEnd: false 
+            };
+            startClosure.forEach(s => { if(s.isEnd) dfaStart.isEnd = true; });
+
+            const dfaStates = new Map();
+            dfaStates.set(dfaStart.id, dfaStart);
+            const stack = [dfaStart];
+
+            while(stack.length) {
+                const currentDfaState = stack.pop();
+                inputs.forEach(char => {
+                    const moveResult = new Set();
+                    currentDfaState.nfaStates.forEach(nfaS => {
+                        if(nfaS.transitions[char]) {
+                            nfaS.transitions[char].forEach(next => moveResult.add(next));
+                        }
+                    });
+                    if(moveResult.size === 0) return;
+
+                    const nextClosure = getEpsilonClosure(moveResult);
+                    const id = Array.from(nextClosure).map(s=>s.id).sort().join(',');
+
+                    let nextDfaState = dfaStates.get(id);
+                    if(!nextDfaState) {
+                        nextDfaState = { 
+                            id: id, nfaStates: nextClosure, transitions: {}, isEnd: false 
+                        };
+                        nextClosure.forEach(s => { if(s.isEnd) nextDfaState.isEnd = true; });
+                        dfaStates.set(id, nextDfaState);
+                        stack.push(nextDfaState);
+                    }
+                    currentDfaState.transitions[char] = nextDfaState;
+                });
+            }
+            return { start: dfaStart, states: dfaStates };
+        }
+    </script>
+</body>
+</html>
